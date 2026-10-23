@@ -1,0 +1,16 @@
+{
+  "TableName": "jobs",
+  "Key": { "jobId": { "S": "J101" } },
+  "UpdateExpression": "SET #st = :running, runningMarker = :marker, leaseExpiresAt = :lease, #ver = #ver + :one REMOVE readyShard",
+  "ConditionExpression": "#st = :pending AND #ver = :expectedVersion",
+  "ExpressionAttributeNames": { "#st": "status", "#ver": "version" },
+  "ExpressionAttributeValues": {
+    ":running": { "S": "RUNNING" },
+    ":pending": { "S": "PENDING" },
+    ":marker": { "S": "RUNNING" },
+    ":lease": { "N": "35000" },
+    ":one": { "N": "1" },
+    ":expectedVersion": { "N": "1" }
+  },
+  "ReturnValues": "ALL_NEW"
+}

@@ -1,0 +1,10 @@
+{
+  "TableName": "idempotency_keys",
+  "BillingMode": "PAY_PER_REQUEST",
+  "AttributeDefinitions": [
+    { "AttributeName": "key", "AttributeType": "S" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "key", "KeyType": "HASH" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "TableName": "jobs",
+  "IndexName": "ready-index",
+  "KeyConditionExpression": "readyShard = :shard AND nextRunAt <= :now",
+  "ExpressionAttributeValues": {
+    ":shard": { "S": "READY#0" },
+    ":now": { "N": "5000" }
+  }
+}

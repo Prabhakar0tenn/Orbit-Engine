@@ -1,0 +1,12 @@
+{
+  "TableName": "executions",
+  "BillingMode": "PAY_PER_REQUEST",
+  "AttributeDefinitions": [
+    { "AttributeName": "jobId", "AttributeType": "S" },
+    { "AttributeName": "sk", "AttributeType": "S" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "jobId", "KeyType": "HASH" },
+    { "AttributeName": "sk", "KeyType": "RANGE" }
+  ]
+}

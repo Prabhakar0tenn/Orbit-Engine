@@ -1,0 +1,20 @@
+{
+  "jobs": [
+    { "PutRequest": { "Item": {
+      "jobId": { "S": "J101" }, "jobType": { "S": "EMAIL" }, "status": { "S": "PENDING" },
+      "nextRunAt": { "N": "4000" }, "readyShard": { "S": "READY#0" }, "version": { "N": "1" }
+    } } },
+    { "PutRequest": { "Item": {
+      "jobId": { "S": "J102" }, "jobType": { "S": "SLEEP" }, "status": { "S": "RUNNING" },
+      "nextRunAt": { "N": "3000" }, "runningMarker": { "S": "RUNNING" }, "leaseExpiresAt": { "N": "9000" }, "version": { "N": "2" }
+    } } },
+    { "PutRequest": { "Item": {
+      "jobId": { "S": "J103" }, "jobType": { "S": "FLAKY" }, "status": { "S": "PENDING" },
+      "nextRunAt": { "N": "4500" }, "readyShard": { "S": "READY#0" }, "version": { "N": "1" }
+    } } },
+    { "PutRequest": { "Item": {
+      "jobId": { "S": "J104" }, "jobType": { "S": "EMAIL" }, "status": { "S": "PENDING" },
+      "nextRunAt": { "N": "7000" }, "readyShard": { "S": "READY#0" }, "version": { "N": "1" }
+    } } }
+  ]
+}

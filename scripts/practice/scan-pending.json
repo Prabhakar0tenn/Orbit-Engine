@@ -1,0 +1,6 @@
+{
+  "TableName": "jobs",
+  "FilterExpression": "#st = :pending",
+  "ExpressionAttributeNames": { "#st": "status" },
+  "ExpressionAttributeValues": { ":pending": { "S": "PENDING" } }
+}

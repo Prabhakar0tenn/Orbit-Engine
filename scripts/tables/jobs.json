@@ -1,0 +1,32 @@
+{
+  "TableName": "jobs",
+  "BillingMode": "PAY_PER_REQUEST",
+  "AttributeDefinitions": [
+    { "AttributeName": "jobId", "AttributeType": "S" },
+    { "AttributeName": "readyShard", "AttributeType": "S" },
+    { "AttributeName": "nextRunAt", "AttributeType": "N" },
+    { "AttributeName": "runningMarker", "AttributeType": "S" },
+    { "AttributeName": "leaseExpiresAt", "AttributeType": "N" }
+  ],
+  "KeySchema": [
+    { "AttributeName": "jobId", "KeyType": "HASH" }
+  ],
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "ready-index",
+      "KeySchema": [
+        { "AttributeName": "readyShard", "KeyType": "HASH" },
+        { "AttributeName": "nextRunAt", "KeyType": "RANGE" }
+      ],
+      "Projection": { "ProjectionType": "ALL" }
+    },
+    {
+      "IndexName": "running-index",
+      "KeySchema": [
+        { "AttributeName": "runningMarker", "KeyType": "HASH" },
+        { "AttributeName": "leaseExpiresAt", "KeyType": "RANGE" }
+      ],
+      "Projection": { "ProjectionType": "ALL" }
+    }
+  ]
+}

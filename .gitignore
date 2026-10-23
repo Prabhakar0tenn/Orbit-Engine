@@ -1,0 +1,15 @@
+# Secrets and local credentials
+.env
+*.pem
+*.key
+*accessKeys.csv
+rootkey.csv
+.aws/
+
+# Local DynamoDB data
+*.db
+
+# Build output and IDE files
+target/
+.vscode/
+.idea/

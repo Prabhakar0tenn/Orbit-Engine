@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: orbit-engine
+  profiles:
+    default: local
+
+aws:
+  region: ap-southeast-2
+  dynamodb:
+    endpoint: ""
+    jobs-table: jobs
+
+orbit:
+  poller:
+    shards: 1
