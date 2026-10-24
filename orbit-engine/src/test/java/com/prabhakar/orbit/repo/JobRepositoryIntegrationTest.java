@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +25,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 // Needs DynamoDB Local running on port 8000 with the tables created; skipped otherwise.
-@SpringBootTest
+@SpringBootTest(properties = "orbit.poller.enabled=false")
 class JobRepositoryIntegrationTest {
 
     @Autowired
@@ -83,17 +84,50 @@ class JobRepositoryIntegrationTest {
         Job job = pendingJob(1000L);
         repository.save(job);
 
-        boolean first = repository.claim(job, "worker-A", 5000L, 30_000L);
-        boolean second = repository.claim(job, "worker-B", 5000L, 30_000L);
+        Optional<Job> first = repository.claim(job, "worker-A", 5000L, 30_000L);
+        Optional<Job> second = repository.claim(job, "worker-B", 5000L, 30_000L);
 
-        assertTrue(first);
-        assertFalse(second);
+        assertTrue(first.isPresent());
+        assertTrue(second.isEmpty());
+        assertEquals(JobStatus.RUNNING, first.get().getStatus());
+        assertEquals("worker-A", first.get().getLeaseOwner());
+        assertEquals(1, first.get().getAttempt());
         Job claimed = repository.findById(job.getJobId()).orElseThrow();
         assertEquals(JobStatus.RUNNING, claimed.getStatus());
         assertEquals("worker-A", claimed.getLeaseOwner());
         assertEquals(2L, claimed.getVersion());
         assertNull(claimed.getReadyShard());
         assertTrue(repository.findReady(shard, 5000L, 10).isEmpty());
+    }
+
+    @Test
+    void finishEndsTheJobAndClearsTheLease() {
+        Job job = pendingJob(1000L);
+        repository.save(job);
+        Job claimed = repository.claim(job, "worker-A", 5000L, 30_000L).orElseThrow();
+
+        boolean saved = repository.finish(claimed, JobStatus.SUCCEEDED, 6000L, null);
+
+        assertTrue(saved);
+        Job finished = repository.findById(job.getJobId()).orElseThrow();
+        assertEquals(JobStatus.SUCCEEDED, finished.getStatus());
+        assertNull(finished.getLeaseOwner());
+        assertNull(finished.getRunningMarker());
+        assertNull(finished.getLeaseExpiresAt());
+        assertEquals(3L, finished.getVersion());
+    }
+
+    @Test
+    void finishIsRejectedWhenThisWorkerNoLongerOwnsTheJob() {
+        Job job = pendingJob(1000L);
+        repository.save(job);
+        Job claimed = repository.claim(job, "worker-A", 5000L, 30_000L).orElseThrow();
+        claimed.setLeaseOwner("worker-B");
+
+        boolean saved = repository.finish(claimed, JobStatus.SUCCEEDED, 6000L, null);
+
+        assertFalse(saved);
+        assertEquals(JobStatus.RUNNING, repository.findById(job.getJobId()).orElseThrow().getStatus());
     }
 
     private Job pendingJob(long nextRunAt) {

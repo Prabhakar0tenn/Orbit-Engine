@@ -1,5 +1,6 @@
 package com.prabhakar.orbit.repo;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import com.prabhakar.orbit.config.AwsProperties;
 import com.prabhakar.orbit.domain.Job;
+import com.prabhakar.orbit.domain.JobStatus;
 
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -19,12 +21,15 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 
 @Repository
 public class JobRepository {
 
     private static final String READY_INDEX = "ready-index";
+    private static final int MAX_ERROR_LENGTH = 1000;
 
     private final DynamoDbClient client;
     private final DynamoDbTable<Job> table;
@@ -58,8 +63,8 @@ public class JobRepository {
                 .toList();
     }
 
-    /** Returns true if this worker won the claim, false if another worker got there first. */
-    public boolean claim(Job job, String workerId, long now, long leaseMs) {
+    /** Returns the job as stored after the claim, or empty if another worker got there first. */
+    public Optional<Job> claim(Job job, String workerId, long now, long leaseMs) {
         UpdateItemRequest request = UpdateItemRequest.builder()
                 .tableName(tableName)
                 .key(Map.of("jobId", AttributeValue.fromS(job.getJobId())))
@@ -79,6 +84,45 @@ public class JobRepository {
                         Map.entry(":one", number(1)),
                         Map.entry(":zero", number(0)),
                         Map.entry(":expectedVersion", number(job.getVersion()))))
+                .returnValues(ReturnValue.ALL_NEW)
+                .build();
+        try {
+            UpdateItemResponse response = client.updateItem(request);
+            return Optional.of(table.tableSchema().mapToItem(response.attributes()));
+        } catch (ConditionalCheckFailedException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Ends a RUNNING job with the given outcome and clears its lease.
+     * Returns false if this worker no longer owns the job (lease lost).
+     */
+    public boolean finish(Job job, JobStatus outcome, long now, String lastError) {
+        if (!JobStatus.RUNNING.canMoveTo(outcome)) {
+            throw new IllegalArgumentException("RUNNING cannot move to " + outcome);
+        }
+
+        StringBuilder update = new StringBuilder("SET #st = :outcome, updatedAt = :now, #ver = #ver + :one");
+        Map<String, AttributeValue> values = new HashMap<>();
+        values.put(":outcome", AttributeValue.fromS(outcome.name()));
+        values.put(":running", AttributeValue.fromS(JobStatus.RUNNING.name()));
+        values.put(":owner", AttributeValue.fromS(job.getLeaseOwner()));
+        values.put(":now", number(now));
+        values.put(":one", number(1));
+        if (lastError != null) {
+            update.append(", lastError = :error");
+            values.put(":error", AttributeValue.fromS(truncate(lastError)));
+        }
+        update.append(" REMOVE runningMarker, leaseOwner, leaseExpiresAt");
+
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of("jobId", AttributeValue.fromS(job.getJobId())))
+                .updateExpression(update.toString())
+                .conditionExpression("#st = :running AND leaseOwner = :owner")
+                .expressionAttributeNames(Map.of("#st", "status", "#ver", "version"))
+                .expressionAttributeValues(values)
                 .build();
         try {
             client.updateItem(request);
@@ -86,6 +130,10 @@ public class JobRepository {
         } catch (ConditionalCheckFailedException e) {
             return false;
         }
+    }
+
+    private static String truncate(String text) {
+        return text.length() > MAX_ERROR_LENGTH ? text.substring(0, MAX_ERROR_LENGTH) : text;
     }
 
     private static AttributeValue number(long value) {

@@ -5,7 +5,7 @@ Update the checkboxes as we go. Days can slip; buffer days (7 and 12) absorb tha
 ## Progress
 
 ```
-Days    [####----------]  4 / 14 done
+Days    [#####---------]  5 / 14 done
 Tier 1  [##------------]  MVP (must finish)
 Tier 2  [--------------]  Lease, cron, cancel, idempotency, S3 logs
 Tier 3  [--------------]  AWS deploy + load test
@@ -17,7 +17,7 @@ Tier 3  [--------------]  AWS deploy + load test
 | Tables + GSIs created | Done |
 | `JobStatus` + tests | Done |
 | Repository + REST API | Done (Days 3-4) |
-| Engine (poller, pool, runner) | Next (Day 5) |
+| Engine (poller, pool, runner) | Poller, pool, basic runner done (Day 5); run history next (Day 6) |
 | Retries, lease, recovery | Not started |
 | Tests + coverage | Not started |
 | AWS deploy + load test | Not started |
@@ -59,21 +59,24 @@ Tier 3  [--------------]  AWS deploy + load test
 - [x] `JobService` + Mockito tests, `@WebMvcTest` controller tests (42 tests total, 39 run without DynamoDB Local)
 **Done when:** `curl` submit and fetch both work. (Verified against the running app.)
 
-## Day 5: Worker pool, poller, atomic claim
+## Day 5: Worker pool, poller, atomic claim (DONE, pending your explanation review)
 **Learn first:** race conditions, `ThreadPoolExecutor` (core/max/queue/rejection), `@Scheduled`.
 **Build:**
-- [ ] `WorkerPool` (bounded queue, named threads)
-- [ ] `JobPoller` (query ready-index, limit by free slots, claim)
-- [ ] `JobHandler` interface + registry
-**Done when:** the poller claims a job and hands it to a worker thread.
+- [x] `WorkerPool` (fixed size, bounded queue, named threads, graceful shutdown)
+- [x] `JobPoller` (query ready-index, limit by free slots, claim, hand to a worker)
+- [x] `JobHandler` interface, `JobHandlerRegistry`, `SleepHandler`
+- [x] Basic `JobRunner` (runs the handler, ends the job SUCCEEDED or FAILED) and `JobRepository.finish`
+- [x] First end-to-end test: submit a SLEEP job, it becomes SUCCEEDED (61 tests total, 0 failures)
+**Done when:** the poller claims a job and hands it to a worker thread. (Done, and it already runs to SUCCEEDED.)
 
-## Day 6: JobRunner, SLEEP handler, run history
+## Day 6: Run history (and runner polish)
 **Learn first:** `Runnable` vs `Callable`, `Future`, `java.time.Clock`.
 **Build:**
-- [ ] `JobRunner`, `SleepHandler`
-- [ ] `ExecutionRepository`, `GET /jobs/{id}/executions`
-- [ ] Conditional state updates (RUNNING to SUCCEEDED)
-**Done when:** first end-to-end run: PENDING to SUCCEEDED, with history.
+- [x] `JobRunner`, `SleepHandler` (done on Day 5)
+- [ ] `ExecutionRepository` and the `executions` table rows (one per run)
+- [ ] `GET /jobs/{id}/executions`
+- [x] Conditional state update RUNNING to SUCCEEDED (done on Day 5)
+**Done when:** a finished job shows its run history through the API.
 
 ## Day 7: Buffer, review, commit
 - [ ] Catch up on anything unfinished
@@ -101,7 +104,7 @@ Tier 3  [--------------]  AWS deploy + load test
 **Learn first:** `TransactWriteItems`, DynamoDB TTL, Spring `CronExpression`.
 **Build:**
 - [ ] Idempotent submit
-- [ ] CRON and FIXED_RATE (`ScheduleCalculator`)
+- [ ] CRON and FIXED_RATE (`ScheduleCalculator`): a failed recurring run goes to the next scheduled time (D18); missed runs are not replayed (D19)
 - [ ] Cancel API (cooperative for RUNNING)
 **Also:** AWS free-plan account is ready (done). Re-check on this day that DynamoDB, S3 and EC2 are allowed on the free plan.
 

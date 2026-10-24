@@ -1,7 +1,6 @@
 package com.prabhakar.orbit.service;
 
 import java.time.Clock;
-import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -12,7 +11,9 @@ import com.prabhakar.orbit.api.dto.SubmitJobRequest;
 import com.prabhakar.orbit.config.OrbitProperties;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
+import com.prabhakar.orbit.domain.ReadyShard;
 import com.prabhakar.orbit.domain.ScheduleType;
+import com.prabhakar.orbit.handler.JobHandlerRegistry;
 import com.prabhakar.orbit.repo.JobRepository;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -22,27 +23,28 @@ public class JobService {
 
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
 
-    // Replaced by the handler registry once handlers exist.
-    private static final Set<String> SUPPORTED_TYPES = Set.of("SLEEP", "FLAKY");
     private static final int DEFAULT_MAX_ATTEMPTS = 3;
     private static final int DEFAULT_TIMEOUT_SEC = 60;
     private static final long DEFAULT_BACKOFF_BASE_MS = 1_000;
     private static final long DEFAULT_BACKOFF_CAP_MS = 60_000;
 
     private final JobRepository repository;
+    private final JobHandlerRegistry handlerRegistry;
     private final Clock clock;
     private final OrbitProperties properties;
     private final JsonMapper jsonMapper;
 
-    public JobService(JobRepository repository, Clock clock, OrbitProperties properties, JsonMapper jsonMapper) {
+    public JobService(JobRepository repository, JobHandlerRegistry handlerRegistry, Clock clock,
+            OrbitProperties properties, JsonMapper jsonMapper) {
         this.repository = repository;
+        this.handlerRegistry = handlerRegistry;
         this.clock = clock;
         this.properties = properties;
         this.jsonMapper = jsonMapper;
     }
 
     public Job submit(SubmitJobRequest request) {
-        if (!SUPPORTED_TYPES.contains(request.type())) {
+        if (!handlerRegistry.supports(request.type())) {
             throw new InvalidJobRequestException("Unsupported job type: " + request.type());
         }
 
@@ -65,7 +67,7 @@ public class JobService {
         job.setBackoffCapMs(DEFAULT_BACKOFF_CAP_MS);
         job.setCancelRequested(false);
         job.setVersion(1L);
-        job.setReadyShard("READY#" + Math.floorMod(jobId.hashCode(), properties.poller().shards()));
+        job.setReadyShard(ReadyShard.name(Math.floorMod(jobId.hashCode(), properties.poller().shards())));
         job.setCreatedAt(now);
         job.setUpdatedAt(now);
 

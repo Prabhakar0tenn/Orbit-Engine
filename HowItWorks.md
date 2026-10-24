@@ -225,19 +225,18 @@ Two different things, do not mix them up:
 | **Claim** | Ownership of the job | DynamoDB |
 | **Handoff** | Giving the work to a thread | In memory, inside this app |
 
-The `WorkerPool` is a `ThreadPoolExecutor`: a fixed set of worker threads plus a queue.
+The `WorkerPool` is a `ThreadPoolExecutor`: a fixed set of worker threads plus a small bounded queue.
 ```java
 new ThreadPoolExecutor(
-    4,                              // core threads kept alive
-    8,                              // max threads
-    30, TimeUnit.SECONDS,           // idle extra threads are removed after this
-    new ArrayBlockingQueue<>(50),   // bounded queue
-    threadFactory,
+    4, 4,                           // core == max, from orbit.workers.size
+    0L, TimeUnit.MILLISECONDS,
+    new ArrayBlockingQueue<>(10),   // bounded queue, from orbit.workers.queue
+    threadFactory,                  // names threads orbit-worker-1, 2, ...
     new ThreadPoolExecutor.AbortPolicy());
 ```
-`workerPool.submit(new JobRunner(job))` puts the runner in the queue. When a thread is free, it takes the runner and calls its `run()` method.
+`workerPool.execute(() -> jobRunner.run(claimed))` puts the task in the queue. When a thread is free, it takes the task and runs it.
 
-How the pool decides: fewer threads than core, start a new thread; otherwise queue the task; if the queue is full and threads are below max, start another thread; otherwise reject.
+How the pool decides: fewer threads than core, start a new thread; otherwise queue the task; if the queue is full and threads are below max, start another thread; otherwise reject. **Because extra threads only start once the queue is full, we set core equal to max** (a fixed pool). With separate core and max, jobs would wait in the queue while threads stayed unused.
 
 Why not `Executors.newFixedThreadPool(10)`? It works, but its queue is **unbounded**, so a flood of tasks could grow memory without limit. We use a bounded queue plus the poller's "free slots" check.
 
@@ -262,7 +261,7 @@ Steps inside `run()`:
 | Success, one-off job | `SUCCEEDED` | remove `runningMarker`, lease fields |
 | Success, cron / fixed-rate job | `PENDING` | set the next `nextRunAt`, `attempt = 0`, add `readyShard` back |
 | Failure, attempts left | `RETRYING` | `nextRunAt = now + backoff`, add `readyShard` back, keep `lastError` |
-| Failure, attempts used up | `FAILED` | remove `runningMarker` |
+| Failure, attempts used up | `FAILED` for a one-off job. A **recurring job** goes to `PENDING` for its next scheduled time instead (decision D18) | remove `runningMarker`; recurring: also set the next `nextRunAt`, add `readyShard`, keep `lastError` |
 | Timeout | treated as a failure | |
 
 5. Stop the heartbeat, save the log, finish the execution row.

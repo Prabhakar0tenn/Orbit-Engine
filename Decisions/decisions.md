@@ -24,19 +24,30 @@ Status: OPEN (not decided), DECIDED (chosen), REVISIT (check again later).
 | D15 | No catch-all `Exception` handler in `GlobalExceptionHandler` | It would turn Spring's own 404/405 responses into 500s |
 | D16 | `orbit.poller.shards` is 1 for now; shard is `READY#` + (jobId hash mod shards) | Resolves Q4: start with one shard, config-driven |
 | D17 | Request payload is a JSON object, stored as a JSON string in `Job.payload` | Matches the DynamoDB design; Boot 4 uses Jackson 3 (`tools.jackson`) |
+| D18 | A recurring (CRON / FIXED_RATE) job that fails after all its retries is rescheduled for the next scheduled time. It never ends as `FAILED`; only ONE_OFF jobs do. Each failed run is still recorded in `executions` and `lastError`. | The target API may be down now and fine later |
+| D19 | Missed runs are never replayed. After a downtime, a due recurring job runs at most once (late), and the next time is computed from now. A strict "skip if too late" rule (misfire grace) is a later option. | Keeps the scheduler simple and predictable |
+| D20 | `HTTP_CALL` handler stays in scope (real tasks: call an API); `GENERATE_REPORT` is first on the cut list | Makes the scheduler useful beyond fake jobs |
+| D21 | Recurring schedules use the cron text stored in the job row plus `nextRunAt` and the one generic poller, not one Spring `@Scheduled` method per job | `@Scheduled` is fixed in code; it cannot be added at runtime, survives no restart and would double-run on two instances |
+| D22 | Worker pool is fixed size (`orbit.workers.size`, core = max) with a small bounded queue (`orbit.workers.queue`) | A `ThreadPoolExecutor` only adds threads beyond core after the queue is full, so separate core/max would leave threads idle while jobs queue |
+| D23 | The poller never claims more jobs than `freeSlots()` (size - active - queued, never below 0) | A claimed job has a ticking lease, it must not wait in a long queue |
+| D24 | `claim` returns the claimed job as stored (`Optional<Job>`), not a boolean | The runner needs the real `attempt`, `version` and `leaseOwner` |
+| D25 | Until Day 8, a failed handler ends the job as `FAILED` (no retry yet); only types with a registered handler are accepted at submit (`FLAKY` returns after Day 8) | Keeps Day 5 small; the registry is now the source of truth for valid types |
+| D26 | `JobRunner` is a stateless Spring component with `run(Job)`; the poller submits `() -> jobRunner.run(job)` | Easier to test than a new Runnable object per job |
 
 ## Open (decide later)
 
 | # | Question | Decide by | Notes |
 |---|---|---|---|
 | Q1 | What state does a RUNNING job end in when it is cancelled? | Day 10 | Today there is no RUNNING to CANCELLED move. Suggestion: add it, plus one line in `JobStatus`, and flip the test `RUNNING, CANCELLED` to allowed. |
-| Q2 | When a CRON job fails after all retries, does it stay FAILED or go back to PENDING for the next cycle? | Day 10 | Pick one, write it in the README. |
+| Q2 | RESOLVED (see D18): what a CRON job does after exhausting its retries | Day 10 | Moves on to the next scheduled time. |
 | Q3 | RESOLVED (see D11): how integration tests reach DynamoDB | Day 3 | Standalone jar on port 8000. Revisit the embedded library only if we want CI. |
 | Q4 | RESOLVED (see D16): write sharding for `ready-index` | Day 5 | Start with N=1. |
 | Q5 | Should the DynamoDB tables be provisioned (small) or on-demand on AWS? | Day 13 | On-demand is simpler. Provisioned small capacity may be free. |
 | Q6 | Fix the outdated lines in `Job_Scheduler_Project_Plan.md` (Java 17, LocalStack) or retire the file | Soon | `context.md` is the newer source of truth. |
 | Q7 | Delete `description.md.txt` (replaced by `context.md`) | Soon | Waiting for Prabhakar's OK. |
 | Q8 | RESOLVED: `ScheduleType` was created on Day 3 with the `Job` model | Day 3 | Done. |
+| Q9 | Auto-pause a recurring job after N consecutive failed cycles? | After Day 10 | A permanently broken recurring job otherwise keeps failing forever (only cancel stops it). |
+| Q10 | Per-job configurable retry policy (attempts, backoff) beyond the defaults | After Day 8 | Prabhakar wants to improve retries in later versions. |
 
 ## Learned (short notes)
 

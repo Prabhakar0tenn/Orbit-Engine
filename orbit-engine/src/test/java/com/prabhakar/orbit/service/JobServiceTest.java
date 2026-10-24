@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,6 +27,8 @@ import com.prabhakar.orbit.config.OrbitProperties;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
 import com.prabhakar.orbit.domain.ScheduleType;
+import com.prabhakar.orbit.handler.JobHandlerRegistry;
+import com.prabhakar.orbit.handler.SleepHandler;
 import com.prabhakar.orbit.repo.JobRepository;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -44,8 +47,12 @@ class JobServiceTest {
     void setUp() {
         service = new JobService(
                 repository,
+                new JobHandlerRegistry(List.of(new SleepHandler())),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                new OrbitProperties(new OrbitProperties.Poller(1)),
+                new OrbitProperties(
+                        new OrbitProperties.Poller(1, 1000),
+                        new OrbitProperties.Workers(2, 5),
+                        new OrbitProperties.Lease(30_000)),
                 JsonMapper.builder().build());
     }
 
@@ -73,7 +80,7 @@ class JobServiceTest {
 
     @Test
     void submitHonoursDelayAndOverrides() {
-        SubmitJobRequest request = new SubmitJobRequest("later", "FLAKY", null, 5, 120, 30L);
+        SubmitJobRequest request = new SubmitJobRequest("later", "SLEEP", null, 5, 120, 30L);
 
         service.submit(request);
 
