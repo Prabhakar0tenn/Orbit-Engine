@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -24,11 +25,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.prabhakar.orbit.api.dto.SubmitJobRequest;
 import com.prabhakar.orbit.config.OrbitProperties;
+import com.prabhakar.orbit.domain.Execution;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
 import com.prabhakar.orbit.domain.ScheduleType;
 import com.prabhakar.orbit.handler.JobHandlerRegistry;
 import com.prabhakar.orbit.handler.SleepHandler;
+import com.prabhakar.orbit.repo.ExecutionRepository;
 import com.prabhakar.orbit.repo.JobRepository;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -41,12 +44,16 @@ class JobServiceTest {
     @Mock
     private JobRepository repository;
 
+    @Mock
+    private ExecutionRepository executionRepository;
+
     private JobService service;
 
     @BeforeEach
     void setUp() {
         service = new JobService(
                 repository,
+                executionRepository,
                 new JobHandlerRegistry(List.of(new SleepHandler())),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new OrbitProperties(
@@ -116,5 +123,27 @@ class JobServiceTest {
         when(repository.findById("missing")).thenReturn(Optional.empty());
 
         assertThrows(JobNotFoundException.class, () -> service.get("missing"));
+    }
+
+    @Test
+    void executionsReturnsTheStoredHistoryOfAnExistingJob() {
+        Execution latest = new Execution();
+        latest.setAttempt(2);
+        when(repository.findById("job-1")).thenReturn(Optional.of(new Job()));
+        when(executionRepository.findLatest("job-1", 50)).thenReturn(List.of(latest));
+
+        List<Execution> history = service.executions("job-1");
+
+        assertEquals(1, history.size());
+        assertSame(latest, history.get(0));
+    }
+
+    @Test
+    void executionsThrowsForAnUnknownJobWithoutReadingHistory() {
+        when(repository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThrows(JobNotFoundException.class, () -> service.executions("missing"));
+
+        verifyNoInteractions(executionRepository);
     }
 }

@@ -1,6 +1,7 @@
 package com.prabhakar.orbit.api;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.prabhakar.orbit.api.dto.ExecutionResponse;
 import com.prabhakar.orbit.api.dto.JobResponse;
 import com.prabhakar.orbit.api.dto.SubmitJobRequest;
 import com.prabhakar.orbit.domain.Job;
@@ -37,5 +39,10 @@ public class JobController {
     @GetMapping("/{jobId}")
     public JobResponse get(@PathVariable String jobId) {
         return JobResponse.from(jobService.get(jobId));
+    }
+
+    @GetMapping("/{jobId}/executions")
+    public List<ExecutionResponse> executions(@PathVariable String jobId) {
+        return jobService.executions(jobId).stream().map(ExecutionResponse::from).toList();
     }
 }

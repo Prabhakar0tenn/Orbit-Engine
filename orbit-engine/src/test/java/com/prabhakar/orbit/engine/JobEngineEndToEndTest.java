@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 
 import com.prabhakar.orbit.api.dto.SubmitJobRequest;
+import com.prabhakar.orbit.domain.Execution;
+import com.prabhakar.orbit.domain.ExecutionStatus;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
 import com.prabhakar.orbit.service.JobService;
@@ -48,6 +51,10 @@ class JobEngineEndToEndTest {
     @AfterEach
     void cleanUp() {
         if (jobId != null) {
+            for (Execution execution : jobService.executions(jobId)) {
+                client.deleteItem(b -> b.tableName("executions")
+                        .key(Map.of("jobId", AttributeValue.fromS(jobId), "sk", AttributeValue.fromS(execution.getSk()))));
+            }
             client.deleteItem(b -> b.tableName("jobs").key(Map.of("jobId", AttributeValue.fromS(jobId))));
         }
     }
@@ -65,5 +72,10 @@ class JobEngineEndToEndTest {
         assertNull(finished.getLeaseOwner());
         assertNull(finished.getRunningMarker());
         assertNull(finished.getReadyShard());
+
+        List<Execution> history = jobService.executions(jobId);
+        assertEquals(1, history.size());
+        assertEquals(ExecutionStatus.SUCCEEDED, history.get(0).getStatus());
+        assertEquals(1, history.get(0).getAttempt());
     }
 }

@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -17,6 +19,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.prabhakar.orbit.api.dto.SubmitJobRequest;
+import com.prabhakar.orbit.domain.Execution;
+import com.prabhakar.orbit.domain.ExecutionStatus;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
 import com.prabhakar.orbit.service.InvalidJobRequestException;
@@ -101,6 +105,34 @@ class JobControllerTest {
         mockMvc.perform(get("/api/v1/jobs/missing"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Job not found: missing"));
+    }
+
+    @Test
+    void executionsReturnsTheRunHistoryAsAJsonArray() throws Exception {
+        Execution run = new Execution();
+        run.setJobId("job-1");
+        run.setAttempt(1);
+        run.setStatus(ExecutionStatus.SUCCEEDED);
+        run.setWorkerId("worker-A");
+        run.setStartedAt(1000L);
+        run.setFinishedAt(1200L);
+        run.setDurationMs(200L);
+        when(jobService.executions("job-1")).thenReturn(List.of(run));
+
+        mockMvc.perform(get("/api/v1/jobs/job-1/executions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$[0].workerId").value("worker-A"))
+                .andExpect(jsonPath("$[0].durationMs").value(200));
+    }
+
+    @Test
+    void executionsReturns404ForUnknownJob() throws Exception {
+        when(jobService.executions("missing")).thenThrow(new JobNotFoundException("missing"));
+
+        mockMvc.perform(get("/api/v1/jobs/missing/executions"))
+                .andExpect(status().isNotFound());
     }
 
     private static Job job(String jobId) {

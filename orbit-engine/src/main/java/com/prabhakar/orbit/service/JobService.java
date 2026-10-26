@@ -1,6 +1,7 @@
 package com.prabhakar.orbit.service;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -9,11 +10,13 @@ import org.springframework.stereotype.Service;
 
 import com.prabhakar.orbit.api.dto.SubmitJobRequest;
 import com.prabhakar.orbit.config.OrbitProperties;
+import com.prabhakar.orbit.domain.Execution;
 import com.prabhakar.orbit.domain.Job;
 import com.prabhakar.orbit.domain.JobStatus;
 import com.prabhakar.orbit.domain.ReadyShard;
 import com.prabhakar.orbit.domain.ScheduleType;
 import com.prabhakar.orbit.handler.JobHandlerRegistry;
+import com.prabhakar.orbit.repo.ExecutionRepository;
 import com.prabhakar.orbit.repo.JobRepository;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -27,16 +30,19 @@ public class JobService {
     private static final int DEFAULT_TIMEOUT_SEC = 60;
     private static final long DEFAULT_BACKOFF_BASE_MS = 1_000;
     private static final long DEFAULT_BACKOFF_CAP_MS = 60_000;
+    private static final int MAX_EXECUTIONS_RETURNED = 50;
 
     private final JobRepository repository;
+    private final ExecutionRepository executionRepository;
     private final JobHandlerRegistry handlerRegistry;
     private final Clock clock;
     private final OrbitProperties properties;
     private final JsonMapper jsonMapper;
 
-    public JobService(JobRepository repository, JobHandlerRegistry handlerRegistry, Clock clock,
-            OrbitProperties properties, JsonMapper jsonMapper) {
+    public JobService(JobRepository repository, ExecutionRepository executionRepository,
+            JobHandlerRegistry handlerRegistry, Clock clock, OrbitProperties properties, JsonMapper jsonMapper) {
         this.repository = repository;
+        this.executionRepository = executionRepository;
         this.handlerRegistry = handlerRegistry;
         this.clock = clock;
         this.properties = properties;
@@ -78,5 +84,11 @@ public class JobService {
 
     public Job get(String jobId) {
         return repository.findById(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
+    }
+
+    /** Newest run first. Fails with JobNotFoundException for an unknown job. */
+    public List<Execution> executions(String jobId) {
+        get(jobId);
+        return executionRepository.findLatest(jobId, MAX_EXECUTIONS_RETURNED);
     }
 }

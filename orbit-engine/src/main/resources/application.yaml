@@ -9,6 +9,7 @@ aws:
   dynamodb:
     endpoint: ""
     jobs-table: jobs
+    executions-table: executions
 
 orbit:
   poller:

@@ -33,6 +33,9 @@ Status: OPEN (not decided), DECIDED (chosen), REVISIT (check again later).
 | D24 | `claim` returns the claimed job as stored (`Optional<Job>`), not a boolean | The runner needs the real `attempt`, `version` and `leaseOwner` |
 | D25 | Until Day 8, a failed handler ends the job as `FAILED` (no retry yet); only types with a registered handler are accepted at submit (`FLAKY` returns after Day 8) | Keeps Day 5 small; the registry is now the source of truth for valid types |
 | D26 | `JobRunner` is a stateless Spring component with `run(Job)`; the poller submits `() -> jobRunner.run(job)` | Easier to test than a new Runnable object per job |
+| D27 | One `executions` row per run, key `jobId` + `EXEC#<startedAt zero-padded to 13 digits>#<attempt>`; saved as RUNNING at the start and overwritten with the final result | Zero-padding makes text order equal time order, so a reverse query returns the newest run first |
+| D28 | A failure to write history never stops or fails the job itself | History is for humans; the job result in the `jobs` table is the source of truth |
+| D29 | Email for commits in this repo: `prabhakar.lal@cginfinity.co.in` (corrected spelling). The first commit stays under the owner's no-reply address. | The earlier address was misspelled, so GitHub could not link it |
 
 ## Open (decide later)
 

@@ -5,7 +5,7 @@ Update the checkboxes as we go. Days can slip; buffer days (7 and 12) absorb tha
 ## Progress
 
 ```
-Days    [#####---------]  5 / 14 done
+Days    [######--------]  6 / 14 done
 Tier 1  [##------------]  MVP (must finish)
 Tier 2  [--------------]  Lease, cron, cancel, idempotency, S3 logs
 Tier 3  [--------------]  AWS deploy + load test
@@ -17,8 +17,8 @@ Tier 3  [--------------]  AWS deploy + load test
 | Tables + GSIs created | Done |
 | `JobStatus` + tests | Done |
 | Repository + REST API | Done (Days 3-4) |
-| Engine (poller, pool, runner) | Poller, pool, basic runner done (Day 5); run history next (Day 6) |
-| Retries, lease, recovery | Not started |
+| Engine (poller, pool, runner) | Done with run history (Days 5-6) |
+| Retries, lease, recovery | Next (Day 8; Day 7 is the buffer) |
 | Tests + coverage | Not started |
 | AWS deploy + load test | Not started |
 | README + resume bullets | Not started |
@@ -69,14 +69,14 @@ Tier 3  [--------------]  AWS deploy + load test
 - [x] First end-to-end test: submit a SLEEP job, it becomes SUCCEEDED (61 tests total, 0 failures)
 **Done when:** the poller claims a job and hands it to a worker thread. (Done, and it already runs to SUCCEEDED.)
 
-## Day 6: Run history (and runner polish)
+## Day 6: Run history (and runner polish) (DONE, pending your explanation review)
 **Learn first:** `Runnable` vs `Callable`, `Future`, `java.time.Clock`.
 **Build:**
 - [x] `JobRunner`, `SleepHandler` (done on Day 5)
-- [ ] `ExecutionRepository` and the `executions` table rows (one per run)
-- [ ] `GET /jobs/{id}/executions`
+- [x] `Execution` model, `ExecutionRepository` and one `executions` row per run (RUNNING, then final result; LEASE_LOST if the result could not be saved)
+- [x] `GET /api/v1/jobs/{id}/executions` (newest first, 404 for an unknown job)
 - [x] Conditional state update RUNNING to SUCCEEDED (done on Day 5)
-**Done when:** a finished job shows its run history through the API.
+**Done when:** a finished job shows its run history through the API. (72 tests, 0 failures.)
 
 ## Day 7: Buffer, review, commit
 - [ ] Catch up on anything unfinished
